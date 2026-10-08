@@ -1,8 +1,12 @@
 using DV.CabControls.Spec;
+using DV.HUD;
 using DV.ThingTypes;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityModManagerNet;
+
+using static DV.HUD.InteriorControlsManager;
 
 namespace EuroControls
 {
@@ -10,16 +14,30 @@ namespace EuroControls
 	{
 		public const string Guid = "wiz.eurocontrols";
 
+		private static readonly string[] s_defaultControls = new[]
+		{
+			"C_Throttle",
+			"C_BrakeTrain",
+			"C_BrakeIndependent",
+			"C_BrakeDynamic"
+		};
+		private static readonly List<ControlType> s_defaultReverse = new List<ControlType>
+		{
+			ControlType.TrainBrake,
+			ControlType.IndBrake,
+			ControlType.DynamicBrake
+		};
+
 		public static UnityModManager.ModEntry Instance { get; private set; } = null!;
 
 		private static bool Load(UnityModManager.ModEntry modEntry)
 		{
 			Instance = modEntry;
 
-			ProcessLoco("LocoDE2");
-			ProcessLoco("LocoDH4");
-			ProcessLoco("LocoDM3");
-			ProcessLoco("LocoDM1U");
+			ProcessLoco("LocoDE2", s_defaultControls, s_defaultReverse);
+			ProcessLoco("LocoDH4", s_defaultControls, s_defaultReverse);
+			ProcessLoco("LocoDM3", s_defaultControls, s_defaultReverse);
+			ProcessLoco("LocoDM1U", new[] { "C_TrainBrake", }, new List<ControlType> { ControlType.TrainBrake });
 
 			return true;
 		}
@@ -39,23 +57,39 @@ namespace EuroControls
 			Instance.Logger.Error(message);
 		}
 
-		private static void ProcessLoco(string id)
+		private static void ProcessLoco(string id, string[] controls, List<ControlType> reverseList)
 		{
-
-			if (DV.Globals.G.Types.TryGetLivery(id, out var loco))
+			if (!DV.Globals.G.Types.TryGetLivery(id, out var loco))
 			{
-				Error($"Loco with ID {id} not found!");
+				Error($"Could not find livery {id}");
 				return;
 			}
 
+			var hashPrefabs = new HashSet<string>();
+			var hashControls = new HashSet<string>();
+
 			foreach (var prefab in GetPrefabs(loco))
 			{
-				foreach (var control in GetRelevantControls(prefab))
+				hashPrefabs.Add(prefab.name);
+
+				if (prefab.TryGetComponent(out InteriorControlsManager icm))
 				{
-					FlipControl(control);
-					Log($"Flipped {control.name} of loco {id}");
+					icm.reverseDirectionList = reverseList;
+				}
+
+				foreach (var lever in prefab.GetComponentsInChildren<Lever>())
+				{
+					if (controls.Contains(lever.name))
+					{
+						FlipControl(lever);
+						hashControls.Add(lever.name);
+					}
 				}
 			}
+
+			Log($"Processing {id}:\n" +
+				$"Prefabs: {string.Join(", ", hashPrefabs)}\n" +
+				$"Controls: {string.Join(", ", hashControls)}");
 		}
 
 		private static IEnumerable<GameObject> GetPrefabs(TrainCarLivery livery)
@@ -71,33 +105,15 @@ namespace EuroControls
 			}
 		}
 
-		private static IEnumerable<Lever> GetRelevantControls(GameObject go)
-		{
-			foreach (var item in go.GetComponentsInChildren<Lever>())
-			{
-				switch (item.name)
-				{
-					case "C_Throttle":
-					case "C_BrakeTrain":
-					case "C_BrakeIndependent":
-					case "C_BrakeDynamic":
-						yield return item;
-						continue;
-					default:
-						continue;
-				}
-			}
-		}
-
 		private static void FlipControl(Lever lever)
 		{
 			var min = lever.jointLimitMin;
 			var max = lever.jointLimitMax;
-
 			lever.jointLimitMin = -max;
 			lever.jointLimitMax = -min;
 
 			lever.jointAxis = -lever.jointAxis;
+			lever.scrollWheelHoverScroll = -lever.scrollWheelHoverScroll;
 		}
 	}
 }
