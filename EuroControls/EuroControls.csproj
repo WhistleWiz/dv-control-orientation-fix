@@ -13,5 +13,6 @@
 		<Reference Include="DV.CabControls.Spec" />
 		<Reference Include="DV.Common" />
 		<Reference Include="DV.ThingTypes" />
+		<Reference Include="DV.Utils" />
 	</ItemGroup>
 </Project>

@@ -12,47 +12,62 @@ namespace EuroControls
 {
 	public static class ControlsMod
 	{
-		public const string Guid = "wiz.eurocontrols";
-
-		private static readonly string[] s_defaultControls = new[]
+		private static readonly string[] s_defaultControls1 = new[]
 		{
 			"C_Throttle",
 			"C_BrakeTrain",
 			"C_BrakeIndependent",
 			"C_BrakeDynamic"
 		};
+		private static readonly string[] s_defaultControls2 = new[]
+		{
+			"C_TrainBrake",
+			"C_IndependentBrake"
+		};
+		private static readonly string[] s_defaultControls3 = new[]
+		{
+			"C_Regulator",
+			"C_TrainBrake",
+			"C_IndependentBrake"
+		};
 		private static readonly List<ControlType> s_defaultReverse = new List<ControlType>
 		{
 			ControlType.TrainBrake,
 			ControlType.IndBrake,
-			ControlType.DynamicBrake
-		};
+			ControlType.DynamicBrake,
+			ControlType.CoalDump,
+			ControlType.CylCock,
+			ControlType.Damper
+	};
 
-		public static UnityModManager.ModEntry Instance { get; private set; } = null!;
+		private static UnityModManager.ModEntry Instance = null!;
 
 		private static bool Load(UnityModManager.ModEntry modEntry)
 		{
 			Instance = modEntry;
 
-			ProcessLoco("LocoDE2", s_defaultControls, s_defaultReverse);
-			ProcessLoco("LocoDH4", s_defaultControls, s_defaultReverse);
-			ProcessLoco("LocoDM3", s_defaultControls, s_defaultReverse);
-			ProcessLoco("LocoDM1U", new[] { "C_TrainBrake", }, new List<ControlType> { ControlType.TrainBrake });
+			ProcessLoco("LocoDE2", s_defaultControls1, s_defaultReverse);
+			ProcessLoco("LocoDH4", s_defaultControls1, s_defaultReverse);
+			ProcessLoco("LocoDM3", s_defaultControls1, s_defaultReverse);
+			ProcessLoco("LocoDM1U", s_defaultControls2, s_defaultReverse);
+			ProcessLoco("LocoS060", s_defaultControls2, s_defaultReverse);
+			ProcessLoco("LocoS282A", s_defaultControls3, s_defaultReverse);
+			S282RegulatorFix();
 
 			return true;
 		}
 
-		public static void Log(string message)
+		private static void Log(string message)
 		{
 			Instance.Logger.Log(message);
 		}
 
-		public static void Warning(string message)
+		private static void Warning(string message)
 		{
 			Instance.Logger.Warning(message);
 		}
 
-		public static void Error(string message)
+		private static void Error(string message)
 		{
 			Instance.Logger.Error(message);
 		}
@@ -74,7 +89,8 @@ namespace EuroControls
 
 				if (prefab.TryGetComponent(out InteriorControlsManager icm))
 				{
-					icm.reverseDirectionList = reverseList;
+					// Make a copy.
+					icm.reverseDirectionList = reverseList.ToList();
 				}
 
 				foreach (var lever in prefab.GetComponentsInChildren<Lever>())
@@ -88,8 +104,13 @@ namespace EuroControls
 			}
 
 			Log($"Processing {id}:\n" +
-				$"Prefabs: {string.Join(", ", hashPrefabs)}\n" +
-				$"Controls: {string.Join(", ", hashControls)}");
+				$"    Prefabs: {string.Join(", ", hashPrefabs)}\n" +
+				$"    Controls: {string.Join(", ", hashControls)}");
+
+			if (hashControls.Count == 0)
+			{
+				Warning("Processing did not change any control, something may have changed");
+			}
 		}
 
 		private static IEnumerable<GameObject> GetPrefabs(TrainCarLivery livery)
@@ -114,6 +135,52 @@ namespace EuroControls
 
 			lever.jointAxis = -lever.jointAxis;
 			lever.scrollWheelHoverScroll = -lever.scrollWheelHoverScroll;
+		}
+
+		// What are standards without exceptions?
+		private static void S282RegulatorFix()
+		{
+			if (!DV.Globals.G.Types.TryGetLivery("LocoS282A", out var loco))
+			{
+				Error("Could not find livery LocoS282A for fix");
+				return;
+			}
+
+			foreach (var prefab in GetPrefabs(loco))
+			{
+				var t = prefab.transform.Find("Center/Regulator/C_Regulator");
+
+				if (t == null)
+				{
+					Error("Failed to get regulator for S282!");
+					continue;
+				}
+
+				t.gameObject.AddComponent<HJAFThingyFlipper>();
+			}
+		}
+
+		// So we can invert the lever without inverting the animation.
+		private class HJAFThingyFlipper : MonoBehaviour
+		{
+			private System.Collections.IEnumerator Start()
+			{
+				yield return null;
+				yield return null;
+				yield return null;
+				yield return null;
+
+				if (TryGetComponent(out HingeJointAngleFix hjaf))
+				{
+					hjaf.invertPercentage = !hjaf.invertPercentage;
+				}
+				else
+				{
+					Warning("HJAFThingyFlipper did not find the HJAF!");
+				}
+
+				Destroy(this);
+			}
 		}
 	}
 }

@@ -20,6 +20,13 @@ The following locomotives had their controls changed:
   * Throttle, independent brake, train brake, engine brake.
 * DM1U
   * Train brake.
+* S060
+  * Independent brake, train brake.
+* S282
+  * Throttle, independent brake, train brake.
+
+The standard is: push to go, pull to stop.
+
 
 
 <!-- LICENSE -->
