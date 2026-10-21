@@ -1,5 +1,6 @@
 using DV.CabControls.Spec;
 using DV.HUD;
+using DV.KeyboardInput;
 using DV.ThingTypes;
 using System.Collections.Generic;
 using System.Linq;
@@ -135,6 +136,14 @@ namespace EuroControls
 
 			lever.jointAxis = -lever.jointAxis;
 			lever.scrollWheelHoverScroll = -lever.scrollWheelHoverScroll;
+
+			// All of these controls use this keyboard input so it should
+			// cover everything.
+			// Absolute version is not changed, only incremental.
+			if (lever.TryGetComponent(out MouseScrollKeyboardInput input))
+			{
+				input.scrollAction.flip = !input.scrollAction.flip;
+			}
 		}
 
 		// What are standards without exceptions?
